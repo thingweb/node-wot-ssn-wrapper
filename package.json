@@ -1,0 +1,20 @@
+{
+  "name": "wot-ssn-wrapper",
+  "version": "0.0.1",
+  "description": "WoT SOSA/SSN Wrapper",
+  "main": "src/ssn-wrapper.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "wot",
+    "ssn",
+    "rdf"
+  ],
+  "author": "Victor Charpenay <victor.charpenay@siemens.com>",
+  "license": "MIT",
+  "dependencies": {
+    "rdf": "~3.0.0",
+    "node-wot": "0.2.x"
+  }
+}
