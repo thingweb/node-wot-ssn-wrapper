@@ -30,6 +30,7 @@ const logger = require('node-wot').logger;
 const HttpServer = require('node-wot').HttpServer;
 
 const rdf = require('rdf');
+const jsonld = require('jsonld');
 
 /***************** Terms *****************/
 
@@ -42,31 +43,56 @@ rdf.environment.prefixes.set('sosa', 'http://www.w3.org/ns/sosa/');
 rdf.environment.prefixes.set('td', 'http://www.w3.org/ns/td#');
 
 const RDF = {
-    type: rdf.environment.prefixes.resolve('rdf:type')
+    type: rdf.environment.resolve('rdf:type')
 };
 
 const RDFS = {
-    label: rdf.environment.prefixes.resolve('rdfs:label')
+    label: rdf.environment.resolve('rdfs:label')
 };
 
 const SOSA = {
-    FeatureOfInterest: rdf.environment.prefixes.resolve('sosa:FeatureOfInterest'),
-    ObservableProperty: rdf.environment.prefixes.resolve('ssn:ObservableProperty'),
-    Observation: rdf.environment.prefixes.resolve('sosa:Observation'),
-    observedProperty: rdf.environment.prefixes.resolve('sosa:observedProperty'),
-    resultTime: rdf.environment.prefixes.resolve('sosa:resultTime'),
-    hasFeatureOfInterest: rdf.environment.prefixes.resolve('sosa:hasFeatureOfInterest')
+    FeatureOfInterest: rdf.environment.resolve('sosa:FeatureOfInterest'),
+    ObservableProperty: rdf.environment.resolve('ssn:ObservableProperty'),
+    Observation: rdf.environment.resolve('sosa:Observation'),
+    observedProperty: rdf.environment.resolve('sosa:observedProperty'),
+    resultTime: rdf.environment.resolve('sosa:resultTime'),
+    hasFeatureOfInterest: rdf.environment.resolve('sosa:hasFeatureOfInterest')
 };
 
-const SSN = {
-    Property: rdf.environment.prefixes.resolve('ssn:Property')
+const TD = {
+    Thing: rdf.environment.resolve('td:Thing'),
+    providesInteractionPattern: rdf.environment.resolve('td:providesInteractionPattern'),
+    name: rdf.environment.resolve('td:name')
 }
 
-const TD = {
-    Thing: rdf.environment.prefixes.resolve('td:Thing'),
-    providesInteractionPattern: rdf.environment.prefixes.resolve('td:providesInteractionPattern'),
-    name: rdf.environment.prefixes.resolve('td:name')
-}
+rdf.environment.context = {
+    'simpleResult': 'http://www.w3.org/ns/sosa/hasSimpleResult',
+    'result': {
+        '@id': 'http://www.w3.org/ns/sosa/hasResult',
+        '@type': '@id'
+    }
+};
+
+rdf.environment.jsonSchema = {
+    type: 'object',
+    oneOf: [
+        {
+            properties: {
+                result: {
+                    type: 'object'
+                }
+            },
+            required: ['result']
+        }, {
+            properties: {
+                simpleResult: {
+                    type: ['string', 'number', 'boolean']
+                }
+            },
+            required: ['simpleResult']
+        }
+    ]
+};
 
 /***************** Functions *****************/
 
@@ -87,6 +113,49 @@ rdf.Graph.prototype.matchFirst = function(s, p, o) {
     }
 };
 
+rdf.Graph.prototype.toJsonLd = function() {
+    var nodes = {};
+    this.forEach(t => {
+        var id = t.subject.toString();
+        if (!nodes[id]) {
+            nodes[id] = {
+                '@id': id
+            };
+        }
+
+        var key = t.predicate.nominalValue;
+        var value = {};
+        if (t.object instanceof rdf.Literal) {
+            value['@value'] = t.object.toString();
+            if (t.object.language) {
+                value['@language'] = t.object.language;
+            }
+            if (t.object.datatype) {
+                value['@type'] = rdf.environment.resolve(t.object.datatype);
+            }
+        } else { // NamedNode or BlankNode
+            if (t.predicate == RDF.type) {
+                key = '@type';
+                value = t.object.toString();
+            } else {
+                value['@id'] = t.object.toString();
+            }
+        }
+
+        if (value) {
+            nodes[id][key] = value;
+        }
+    });
+
+    var triples = [];
+    for (let id in nodes) {
+        triples.push(nodes[id]);
+    }
+    return {
+        '@graph': triples
+    };
+}
+
 ExposedThing.prototype.sosaInit = function(node, graph) {
     this.featureOfInterest = node;
     this.observableProperties = {};
@@ -97,7 +166,7 @@ ExposedThing.prototype.sosaInit = function(node, graph) {
              graph.match(t1.subject, SOSA.observedProperty, null)
                   .forEach(t2 => {
                       var name = gen(t2.object.nominalValue);
-                      this.addProperty(name, {type: 'string'});
+                      this.addProperty(name, rdf.environment.jsonSchema);
                       this.observableProperties[name] = t2.object;
                   });
          });
@@ -118,7 +187,25 @@ ExposedThing.prototype.getProperty = function(name) {
                          }
                      });
         if (observation) {
-            return Promise.resolve(observation);
+            var g = this.rdfGraph.toJsonLd();
+            return Promise.resolve({
+                then: function(resolve) {
+                    jsonld.frame(g, { '@id': observation.nominalValue }, (err1, framed) => {
+                        if (err1) {
+                            throw new Error(err1);
+                        } else {
+                            let obj = framed['@graph'][0];
+                            jsonld.compact(obj, rdf.environment.context, (err2, compacted) => {
+                                if (err2) {
+                                    throw new Error(err2);
+                                } else {
+                                    resolve(compacted);
+                                }
+                            });
+                        }
+                    })
+                }
+            });
         } else {
             return Promise.reject(new Error('No observation for property ' + this.name));
         }
