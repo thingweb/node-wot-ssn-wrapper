@@ -66,9 +66,11 @@ const TD = {
 }
 
 rdf.environment.context = {
-    'simpleResult': 'http://www.w3.org/ns/sosa/hasSimpleResult',
+    'sosa': 'http://www.w3.org/ns/sosa/',
+    'ssn': 'http://www.w3.org/ns/ssn/',
+    'simpleResult': 'sosa:hasSimpleResult',
     'result': {
-        '@id': 'http://www.w3.org/ns/sosa/hasResult',
+        '@id': 'sosa:hasResult',
         '@type': '@id'
     }
 };
@@ -220,12 +222,26 @@ ExposedThing.prototype.getProperty = function(name) {
 
 var f = ps.argv[2];
 if (!f) {
-    console.log('Usage: node ssn-wrapper.js <file>\n' +
+    console.log('Usage: node ssn-wrapper.js file [context]\n' +
                 'Params:\n' +
-                '\tfile - RDF file (Turtle)');
+                '\tfile    - RDF file (Turtle)\n' +
+                '\tcontext - JSON-LD context file (JSON)');
     return;
 }
 var text = fs.readFileSync(f, 'UTF-8');
+
+var ctx = ps.argv[3];
+if (ctx) {
+    var contextText = fs.readFileSync(ctx, 'UTF-8');
+    var userContext = JSON.parse(contextText);
+    var defaultContext = rdf.environment.context;
+    rdf.environment.context = [
+        defaultContext,
+        userContext
+    ];
+} else {
+    logger.info('No context provided. Default context used.');
+}
 
 let servient = new Servient();
 servient.addServer(new HttpServer());
