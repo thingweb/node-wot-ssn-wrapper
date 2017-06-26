@@ -21,7 +21,7 @@ $ npm install
 
 To start with an example:
 ```
-$ node src/ssn-wrapper.js examples/tree-height.ttl
+$ node src/ssn-wrapper.js examples/tree-height.ttl examples/tree-height.jsonld
 ```
 
 # Troubleshoot

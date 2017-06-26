@@ -1,0 +1,13 @@
+{
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "qudt-1-1": "http://qudt.org/1.1/schema/qudt#",
+    "qudt-unit-1-1": "http://qudt.org/1.1/vocab/unit#",
+    "unit": {
+        "@id": "qudt-1-1:unit",
+        "@type": "@id"
+    },
+    "value": {
+        "@id": "qudt-1-1:numericalValue",
+        "@type": "xsd:double"
+    }
+}
